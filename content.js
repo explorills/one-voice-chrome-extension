@@ -5,30 +5,32 @@
   const STATE = {
     recording: false,
     startTime: 0,
-    timerInterval: null,
+    maxTimeoutId: null,
     maxDurationSec: 600,
     autoSend: true,
     preText: ''
   };
 
   const MIC_POSITIVE = [
-    'dictate',
-    'dictation',
-    'transcrib',
-    'start voice message',
-    'stop voice message',
-    'start recording',
-    'stop recording'
+    'dictate', 'dictation', 'transcrib',
+    'start voice message', 'stop voice message',
+    'start recording', 'stop recording'
   ];
   const MIC_NEGATIVE = [
-    'voice mode',
-    'voice chat',
-    'voice conversation',
-    'end voice',
-    'advanced voice',
-    'live voice',
-    'speech mode',
-    'headphones'
+    'voice mode', 'voice chat', 'voice conversation',
+    'end voice', 'advanced voice', 'live voice',
+    'speech mode', 'headphones'
+  ];
+
+  const CONFIRM_POSITIVE = [
+    'send voice', 'submit voice',
+    'confirm voice', 'confirm recording',
+    'finish recording', 'done recording', 'send recording',
+    'submit', 'confirm', 'done', 'finish'
+  ];
+  const CONFIRM_NEGATIVE = [
+    'cancel', 'discard', 'delete', 'close',
+    'stop recording', 'abort', 'trash', 'remove'
   ];
 
   const COMPOSER_SELECTORS = [
@@ -45,13 +47,16 @@
     'form button[type="submit"]'
   ];
 
-  function first(selectors, root = document) {
+  function first(selectors) {
     for (const s of selectors) {
-      const el = root.querySelector(s);
+      const el = document.querySelector(s);
       if (el) return el;
     }
     return null;
   }
+
+  function findComposer() { return first(COMPOSER_SELECTORS); }
+  function findSend() { return first(SEND_SELECTORS); }
 
   function buttonIdentifiers(btn) {
     const label = (btn.getAttribute('aria-label') || '').toLowerCase();
@@ -61,33 +66,60 @@
     return `${label} | ${testid} | ${title} | ${text}`;
   }
 
-  function findMic() {
+  function composerScope() {
     const composer = findComposer();
-    const scope = composer ? (composer.closest('form') || composer.parentElement?.closest('div') || document) : document;
-    const buttons = Array.from(scope.querySelectorAll('button'));
-    if (!buttons.length) return null;
+    if (!composer) return document;
+    return composer.closest('form') || composer.parentElement?.closest('div') || document;
+  }
 
+  function rankButton(positives, negatives) {
+    const buttons = Array.from(composerScope().querySelectorAll('button'));
     const ranked = [];
     for (const btn of buttons) {
       const ident = buttonIdentifiers(btn);
       if (!ident.trim()) continue;
-      if (MIC_NEGATIVE.some(n => ident.includes(n))) continue;
+      if (negatives.some(n => ident.includes(n))) continue;
       let score = 0;
-      for (const p of MIC_POSITIVE) if (ident.includes(p)) score += 10;
-      if (/\bmic\b|microphone|\brecord\b/.test(ident)) score += 5;
-      if (score > 0) ranked.push({ btn, score, ident });
+      for (const p of positives) if (ident.includes(p)) score += 10;
+      ranked.push({ btn, score, ident });
     }
-    if (ranked.length) {
-      ranked.sort((a, b) => b.score - a.score);
-      console.log('[ONE voice] picked mic button:', ranked[0].ident);
-      return ranked[0].btn;
+    return { ranked, buttons };
+  }
+
+  function findMic() {
+    const { ranked, buttons } = rankButton(MIC_POSITIVE, MIC_NEGATIVE);
+    for (const r of ranked) {
+      if (/\bmic\b|microphone|\brecord\b/.test(r.ident)) r.score += 5;
     }
-    console.warn('[ONE voice] no mic button matched. Candidates:',
+    const withScore = ranked.filter(r => r.score > 0).sort((a, b) => b.score - a.score);
+    if (withScore.length) {
+      console.log('[ONE voice] mic →', withScore[0].ident);
+      return withScore[0].btn;
+    }
+    console.warn('[ONE voice] mic not matched. Buttons:',
       buttons.map(b => buttonIdentifiers(b)).filter(x => x.trim()));
     return null;
   }
-  function findComposer() { return first(COMPOSER_SELECTORS); }
-  function findSend() { return first(SEND_SELECTORS); }
+
+  function findConfirm() {
+    const { ranked, buttons } = rankButton(CONFIRM_POSITIVE, CONFIRM_NEGATIVE);
+    for (const r of ranked) {
+      if (/check|tick/.test(r.ident)) r.score += 5;
+      const svgs = r.btn.querySelectorAll('svg');
+      for (const svg of svgs) {
+        const n = (svg.getAttribute('aria-label') || svg.getAttribute('data-icon') || '').toLowerCase();
+        if (n.includes('check') || n.includes('tick')) r.score += 3;
+      }
+    }
+    const withScore = ranked.filter(r => r.score > 0).sort((a, b) => b.score - a.score);
+    if (withScore.length) {
+      console.log('[ONE voice] confirm →', withScore[0].ident);
+      return withScore[0].btn;
+    }
+    console.warn('[ONE voice] confirm not matched. Buttons:',
+      buttons.map(b => buttonIdentifiers(b)).filter(x => x.trim()));
+    return null;
+  }
 
   function composerText() {
     const el = findComposer();
@@ -96,12 +128,7 @@
     return el.innerText || el.textContent || '';
   }
 
-  function fmt(sec) {
-    const s = Math.max(0, Math.floor(sec));
-    const m = Math.floor(s / 60);
-    const r = s % 60;
-    return `${m}:${r.toString().padStart(2, '0')}`;
-  }
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   function send(type, payload = {}) {
     try { chrome.runtime.sendMessage({ type, ...payload }); } catch (e) {}
@@ -115,13 +142,12 @@
     } catch (e) {}
   }
 
-  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-
   async function startRecording() {
     await loadConfig();
     const mic = findMic();
     if (!mic) {
-      send('error', { message: 'Mic button not found on ChatGPT page.' });
+      console.warn('[ONE voice] start aborted: no mic button');
+      send('done');
       return;
     }
     STATE.preText = composerText();
@@ -129,39 +155,28 @@
     STATE.recording = true;
     STATE.startTime = Date.now();
 
-    send('status', {
-      title: 'ONE voice — recording',
-      message: `0:00 / ${fmt(STATE.maxDurationSec)}`
-    });
-
-    STATE.timerInterval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - STATE.startTime) / 1000);
-      if (elapsed >= STATE.maxDurationSec) {
-        stopRecording();
-        return;
-      }
-      send('status', {
-        title: 'ONE voice — recording',
-        message: `${fmt(elapsed)} / ${fmt(STATE.maxDurationSec)}`
-      });
-    }, 1000);
+    STATE.maxTimeoutId = setTimeout(() => {
+      console.log('[ONE voice] max duration reached, auto-stopping');
+      stopRecording();
+    }, STATE.maxDurationSec * 1000);
   }
 
   async function stopRecording() {
     if (!STATE.recording) return;
     STATE.recording = false;
-    if (STATE.timerInterval) {
-      clearInterval(STATE.timerInterval);
-      STATE.timerInterval = null;
+    if (STATE.maxTimeoutId) {
+      clearTimeout(STATE.maxTimeoutId);
+      STATE.maxTimeoutId = null;
     }
-    const mic = findMic();
-    if (!mic) {
-      send('error', { message: 'Mic button disappeared before stop.' });
-      return;
-    }
-    mic.click();
 
-    send('status', { title: 'ONE voice', message: 'Converting…' });
+    const confirm = findConfirm();
+    if (!confirm) {
+      console.warn('[ONE voice] confirm button missing; attempting mic toggle as fallback');
+      const mic = findMic();
+      if (mic) mic.click();
+    } else {
+      confirm.click();
+    }
 
     const deadline = Date.now() + 20000;
     let captured = '';
@@ -177,10 +192,7 @@
           : now.trim();
         if (candidate.length === lastLen) {
           stableCycles++;
-          if (stableCycles >= 2) {
-            captured = candidate;
-            break;
-          }
+          if (stableCycles >= 2) { captured = candidate; break; }
         } else {
           stableCycles = 0;
           lastLen = candidate.length;
@@ -190,15 +202,16 @@
     }
 
     if (!captured) {
-      send('error', { message: 'No transcription received in 20s.' });
+      console.warn('[ONE voice] no transcription captured in 20s');
+      send('done');
       return;
     }
 
     try {
       await navigator.clipboard.writeText(captured);
+      console.log('[ONE voice] copied to clipboard:', captured.length, 'chars');
     } catch (e) {
-      send('error', { message: 'Clipboard write blocked. Focus ChatGPT tab once, then retry.' });
-      return;
+      console.warn('[ONE voice] clipboard write failed:', e);
     }
 
     if (STATE.autoSend) {
@@ -206,13 +219,14 @@
       const sendBtn = findSend();
       if (sendBtn && !sendBtn.disabled) {
         sendBtn.click();
-        send('done', { title: 'ONE voice', message: 'Copied + sent to ChatGPT ✓' });
+        console.log('[ONE voice] sent to ChatGPT');
+        await sleep(350);
       } else {
-        send('done', { title: 'ONE voice', message: 'Copied ✓ (send button not ready)' });
+        console.warn('[ONE voice] send button not ready; skipping auto-send');
       }
-    } else {
-      send('done', { title: 'ONE voice', message: 'Copied to clipboard ✓' });
     }
+
+    send('done');
   }
 
   async function toggle() {

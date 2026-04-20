@@ -6,7 +6,6 @@
   "minimum_chrome_version": "116",
   "permissions": [
     "storage",
-    "notifications",
     "scripting",
     "tabs"
   ],
