@@ -32,12 +32,18 @@
   </div>
 
   <div class="row">
+    <label><input type="checkbox" id="pauseMedia"> Pause YouTube / Spotify during recording</label>
+    <div class="hint">Pauses media playing in YouTube, YouTube Music, and Spotify web tabs while recording; resumes automatically when the transcription is captured. First enable will prompt for permission on those two sites only.</div>
+    <div class="hint" id="pauseMediaStatus" style="color:#57606a"></div>
+  </div>
+
+  <div class="row">
     <button id="save">Save</button>
     <span class="status" id="status"></span>
   </div>
 
   <div class="hint" style="margin-top: 16px;">
-    Hotkey: bind at <a href="#" id="shortcuts">chrome://extensions/shortcuts</a> (set scope to <b>Global</b>, default key: Pause/Break).
+    Hotkey: bind at <a href="#" id="shortcuts">chrome://extensions/shortcuts</a> (set scope to <b>Global</b>).
   </div>
 
   <script src="options.js"></script>

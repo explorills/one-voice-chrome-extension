@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "ONE voice (ChatGPT)",
-  "version": "0.1.0",
-  "description": "Global hotkey voice-to-text via ChatGPT browser dictation. Press Pause/Break, speak, press again — transcription lands in your clipboard.",
+  "version": "0.2.0",
+  "description": "Global hotkey voice-to-text via ChatGPT browser dictation. Press the hotkey, speak, press again — transcription lands in your clipboard. Optionally pauses YouTube/Spotify while recording.",
   "minimum_chrome_version": "116",
   "permissions": [
     "storage",
@@ -12,6 +12,10 @@
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*"
+  ],
+  "optional_host_permissions": [
+    "*://*.youtube.com/*",
+    "*://*.spotify.com/*"
   ],
   "background": {
     "service_worker": "background.js"

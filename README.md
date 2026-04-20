@@ -79,6 +79,7 @@ Open the extension's options page (extension icon → Options, or `chrome://exte
 
 - **Max recording duration** *(default 600s / 10 min, range 10–3600)* — recording auto-stops at this limit.
 - **Auto-send to ChatGPT after copy** *(default on)* — submits the transcribed message to the current ChatGPT conversation so your custom GPT can process it and your dictation history accumulates in the chat. Turn off for clipboard-only behaviour.
+- **Pause YouTube / Spotify during recording** *(default off)* — when enabled, the extension pauses any `<video>`/`<audio>` currently playing in YouTube, YouTube Music, or Spotify web tabs the moment you press the hotkey, and resumes them on the second press (after the transcription is captured). Useful when you're listening to music on headphones — background audio bleed into the mic is the top cause of Whisper accuracy drops. The first time you enable this, Chrome prompts you to grant permission for `*.youtube.com` and `*.spotify.com` — that's the entire scope. Nothing else is touched. Revoke anytime at `chrome://extensions/` → Details → Site access, or just uncheck the option (the extension will automatically request permission removal). If you listen via a native Android app or Bluetooth source from your phone, this feature cannot reach those — Chrome extensions have no API to pause non-Chrome audio on ChromeOS.
 
 ## ChromeOS + Crostini notes
 
@@ -98,13 +99,16 @@ Open DevTools on the ChatGPT tab (F12 → Console). Our log lines all start with
 | Confirm button missing | ChatGPT cancelled mid-recording (see above) | Extension now aborts cleanly — just press the hotkey fresh to retry |
 | Clipboard write blocked | Some Chrome versions require tab focus for clipboard writes | Click the ChatGPT tab once, retry |
 | Wrong mic used | ChromeOS/Chrome default input not what you want | See "Choosing which microphone is used" above |
+| Music didn't pause | Pause-media option not enabled, or permission not granted, or audio source is a native app / Bluetooth | Enable in options and grant permission; native/Bluetooth audio sources can't be paused by a Chrome extension |
+| Music didn't resume | Edge case — the `done` event was lost | Extension auto-resumes after 15 min as a safety net; or just press the hotkey twice on a silent page to restore |
 
 ## Security
 
 - **Local-only.** The extension makes zero network requests of its own. Your voice audio goes to OpenAI via ChatGPT's normal dictation flow, identical to clicking the mic by hand. Read the source — no `fetch`, no websocket, no telemetry.
-- **Minimal scope.** `host_permissions` is limited to `chatgpt.com` and `chat.openai.com`; the extension cannot touch any other tab or domain.
-- **Minimal permissions.** `storage` (two settings), `scripting` (inject content script into ChatGPT only), `tabs` (find/focus/minimize the ChatGPT window). No `notifications`, no broad host access, no debugger, no native messaging.
-- **Verify yourself:** `chrome://extensions/` → Details → Permissions. The list should be exactly `Read and change your data on chatgpt.com and chat.openai.com`. If that list ever grows after an update, review the diff before accepting.
+- **Minimal scope by default.** `host_permissions` is limited to `chatgpt.com` and `chat.openai.com`; the extension cannot touch any other tab or domain unless you opt in.
+- **Minimal permissions.** `storage` (three settings), `scripting` (inject content script into ChatGPT only, plus YouTube/Spotify if the pause-media feature is enabled), `tabs` (find/focus/minimize the ChatGPT window). No `notifications`, no debugger, no native messaging, no telemetry.
+- **Opt-in host access.** If you enable **Pause YouTube / Spotify**, the extension requests `*.youtube.com` and `*.spotify.com` as optional host permissions — nothing broader. Disabling the checkbox also removes the permission. Refuse the prompt and the feature stays off; everything else continues to work.
+- **Verify yourself:** `chrome://extensions/` → Details → Permissions / Site access. Without the pause-media option, the list should be exactly `Read and change your data on chatgpt.com and chat.openai.com`. With it on, additionally `*.youtube.com` and `*.spotify.com`. If the list ever grows beyond this after an update, review the diff before accepting.
 
 ## Sibling project
 
