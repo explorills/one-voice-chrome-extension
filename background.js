@@ -129,6 +129,8 @@ chrome.commands.onCommand.addListener(async (command) => {
   const currentlyPaused = await getPausedIds();
   if (currentlyPaused.length === 0) {
     await pauseMediaTabs();
+  } else {
+    await resumeMediaTabs();
   }
 
   try {
