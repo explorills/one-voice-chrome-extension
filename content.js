@@ -134,6 +134,31 @@
     try { chrome.runtime.sendMessage({ type, ...payload }); } catch (e) {}
   }
 
+  async function realisticClick(el) {
+    if (!el) return;
+    try { el.scrollIntoView({ block: 'center', behavior: 'instant' }); } catch (e) {}
+    const rect = el.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const base = {
+      bubbles: true, cancelable: true, composed: true,
+      view: window, clientX: x, clientY: y, screenX: x, screenY: y,
+      button: 0, pointerId: 1, pointerType: 'mouse', isPrimary: true
+    };
+    try { el.focus({ preventScroll: true }); } catch (e) {}
+    el.dispatchEvent(new PointerEvent('pointerover', { ...base, buttons: 0 }));
+    el.dispatchEvent(new PointerEvent('pointerenter', { ...base, buttons: 0 }));
+    el.dispatchEvent(new MouseEvent('mouseover', { ...base, buttons: 0 }));
+    el.dispatchEvent(new MouseEvent('mousemove', { ...base, buttons: 0 }));
+    await sleep(20 + Math.random() * 30);
+    el.dispatchEvent(new PointerEvent('pointerdown', { ...base, buttons: 1 }));
+    el.dispatchEvent(new MouseEvent('mousedown', { ...base, buttons: 1 }));
+    await sleep(30 + Math.random() * 40);
+    el.dispatchEvent(new PointerEvent('pointerup', { ...base, buttons: 0 }));
+    el.dispatchEvent(new MouseEvent('mouseup', { ...base, buttons: 0 }));
+    el.dispatchEvent(new MouseEvent('click', { ...base, buttons: 0, detail: 1 }));
+  }
+
   async function loadConfig() {
     try {
       const cfg = await chrome.storage.sync.get({ maxDuration: 600, autoSend: true });
@@ -151,7 +176,7 @@
       return;
     }
     STATE.preText = composerText();
-    mic.click();
+    await realisticClick(mic);
     STATE.recording = true;
     STATE.startTime = Date.now();
 
@@ -171,12 +196,11 @@
 
     const confirm = findConfirm();
     if (!confirm) {
-      console.warn('[ONE voice] confirm button missing; attempting mic toggle as fallback');
-      const mic = findMic();
-      if (mic) mic.click();
-    } else {
-      confirm.click();
+      console.warn('[ONE voice] recording was cancelled by ChatGPT (no confirm button). Aborting cleanly — no phantom click.');
+      send('done');
+      return;
     }
+    await realisticClick(confirm);
 
     const deadline = Date.now() + 20000;
     let captured = '';
@@ -218,7 +242,7 @@
       await sleep(250);
       const sendBtn = findSend();
       if (sendBtn && !sendBtn.disabled) {
-        sendBtn.click();
+        await realisticClick(sendBtn);
         console.log('[ONE voice] sent to ChatGPT');
         await sleep(350);
       } else {
