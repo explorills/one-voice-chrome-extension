@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "ONE voice (ChatGPT)",
+  "version": "0.1.0",
+  "description": "Global hotkey voice-to-text via ChatGPT browser dictation. Press Pause/Break, speak, press again — transcription lands in your clipboard.",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "storage",
+    "notifications",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "commands": {
+    "toggle-recording": {
+      "description": "ONE voice: toggle ChatGPT recording",
+      "global": true
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+  "action": {
+    "default_title": "ONE voice (ChatGPT)",
+    "default_popup": "options.html"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}
