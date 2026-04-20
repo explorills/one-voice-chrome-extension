@@ -11,13 +11,24 @@
     preText: ''
   };
 
-  const MIC_SELECTORS = [
-    'button[data-testid="composer-speech-button"]',
-    'button[aria-label*="ictate" i]',
-    'button[aria-label*="oice mode" i]',
-    'button[aria-label*="tart voice" i]',
-    'button[aria-label*="top voice" i]',
-    'button[aria-label*="oice" i]'
+  const MIC_POSITIVE = [
+    'dictate',
+    'dictation',
+    'transcrib',
+    'start voice message',
+    'stop voice message',
+    'start recording',
+    'stop recording'
+  ];
+  const MIC_NEGATIVE = [
+    'voice mode',
+    'voice chat',
+    'voice conversation',
+    'end voice',
+    'advanced voice',
+    'live voice',
+    'speech mode',
+    'headphones'
   ];
 
   const COMPOSER_SELECTORS = [
@@ -42,7 +53,39 @@
     return null;
   }
 
-  function findMic() { return first(MIC_SELECTORS); }
+  function buttonIdentifiers(btn) {
+    const label = (btn.getAttribute('aria-label') || '').toLowerCase();
+    const testid = (btn.getAttribute('data-testid') || '').toLowerCase();
+    const title = (btn.getAttribute('title') || '').toLowerCase();
+    const text = (btn.innerText || btn.textContent || '').toLowerCase();
+    return `${label} | ${testid} | ${title} | ${text}`;
+  }
+
+  function findMic() {
+    const composer = findComposer();
+    const scope = composer ? (composer.closest('form') || composer.parentElement?.closest('div') || document) : document;
+    const buttons = Array.from(scope.querySelectorAll('button'));
+    if (!buttons.length) return null;
+
+    const ranked = [];
+    for (const btn of buttons) {
+      const ident = buttonIdentifiers(btn);
+      if (!ident.trim()) continue;
+      if (MIC_NEGATIVE.some(n => ident.includes(n))) continue;
+      let score = 0;
+      for (const p of MIC_POSITIVE) if (ident.includes(p)) score += 10;
+      if (/\bmic\b|microphone|\brecord\b/.test(ident)) score += 5;
+      if (score > 0) ranked.push({ btn, score, ident });
+    }
+    if (ranked.length) {
+      ranked.sort((a, b) => b.score - a.score);
+      console.log('[ONE voice] picked mic button:', ranked[0].ident);
+      return ranked[0].btn;
+    }
+    console.warn('[ONE voice] no mic button matched. Candidates:',
+      buttons.map(b => buttonIdentifiers(b)).filter(x => x.trim()));
+    return null;
+  }
   function findComposer() { return first(COMPOSER_SELECTORS); }
   function findSend() { return first(SEND_SELECTORS); }
 
